@@ -1,0 +1,55 @@
+services:
+  zmq_c_app:
+    build: .
+    container_name: torizon-zmq
+    privileged: true
+    network_mode: "host"
+    user: root
+    volumes:
+      # Acceso a dispositivos GPIO y SPI
+      - /dev:/dev
+      - /sys/class/gpio:/sys/class/gpio
+      - /sys/devices:/sys/devices
+      # Monta la carpeta del host ./logs en /logs dentro del contenedor
+      - ./logs:/logs   
+    environment:
+      - ENV=production
+    restart: unless-stopped
+  mqtt:
+    image: eclipse-mosquitto
+    container_name: mosquitto
+    ports:
+      - "1883:1883"
+      - "9001:9001"
+    volumes:
+      - ./mosquitto/config:/mosquitto/config
+      - ./mosquitto/data:/mosquitto/data
+      - ./mosquitto/log:/mosquitto/log
+    restart: unless-stopped
+
+  web-interface:
+    build: ./web-interface
+    container_name: datalogger-web
+    network_mode: "host"
+    environment:
+      - MQTT_BROKER=mqtt://localhost:1883
+      - WS_PORT=8080
+    depends_on:
+      - mqtt
+    restart: unless-stopped
+
+  influxdb:
+    image: influxdb:2.7
+    container_name: influxdb
+    ports:
+      - "8086:8086"
+    volumes:
+      - ./influxdb/data:/var/lib/influxdb2
+      - ./influxdb/config:/etc/influxdb2
+    environment:
+      - DOCKER_INFLUXDB_INIT_MODE=setup
+      - DOCKER_INFLUXDB_INIT_USERNAME=admin
+      - DOCKER_INFLUXDB_INIT_PASSWORD=admin123
+      - DOCKER_INFLUXDB_INIT_ORG=encardio
+      - DOCKER_INFLUXDB_INIT_BUCKET=nexus
+    restart: unless-stopped
